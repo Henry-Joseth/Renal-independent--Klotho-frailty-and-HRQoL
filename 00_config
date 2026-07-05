@@ -1,0 +1,82 @@
+# =====================================================================
+# 00_config.R  —  Global configuration for the Klotho/ERC/Frailty/HRQoL
+#                 NHANES 2007-2016 pipeline
+# ---------------------------------------------------------------------
+# Edit paths and options here. Nothing else in the pipeline is meant to
+# be hard-coded. All downstream scripts read from this file.
+# =====================================================================
+
+## ---- Paths ---------------------------------------------------------
+PROJ_DIR <- normalizePath(".", mustWork = FALSE)          # run from project root
+RAW_DIR  <- file.path(PROJ_DIR, "data", "raw")            # .XPT files live here
+OUT_DIR  <- file.path(PROJ_DIR, "output")
+dir.create(RAW_DIR, showWarnings = FALSE, recursive = TRUE)
+dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
+
+## ---- Cycles --------------------------------------------------------
+# NHANES serum alpha-Klotho (surplus serum) was measured ONLY in these
+# five 2-year cycles, in participants aged 40-79. Suffix letter E..I.
+CYCLES <- tibble::tribble(
+  ~cycle,       ~suffix, ~years_folder,
+  "2007-2008",  "E",     "2007-2008",
+  "2009-2010",  "F",     "2009-2010",
+  "2011-2012",  "G",     "2011-2012",
+  "2013-2014",  "H",     "2013-2014",
+  "2015-2016",  "I",     "2015-2016"
+)
+N_CYCLES <- nrow(CYCLES)
+
+## ---- NHANES components we need (base name, without _suffix) ---------
+# Each entry: component code + the variables to keep from it.
+# The Klotho surplus file (SSKL) sometimes lives under a different URL
+# path than the standard components (see 01_download_data.R).
+COMPONENTS <- list(
+  DEMO    = c("RIDAGEYR","RIAGENDR","RIDRETH1","DMDEDUC2","INDFMPIR",
+              "SDMVPSU","SDMVSTRA","WTMEC2YR","WTINT2YR"),
+  SSKL    = c("SSKLOTH"),                                 # alpha-Klotho, pg/mL  (CDC var = SSKLOTH)
+  BIOPRO  = c("LBXSCR"),                                  # serum creatinine mg/dL
+  ALB_CR  = c("URXUMA","URXUCR"),                         # urine albumin/creatinine
+  BMX     = c("BMXBMI"),
+  DIQ     = c("DIQ010"),
+  GHB     = c("LBXGH"),                                   # HbA1c %
+  BPQ     = c("BPQ020","BPQ040A"),
+  BPX     = c("BPXSY1","BPXSY2","BPXSY3","BPXSY4",
+              "BPXDI1","BPXDI2","BPXDI3","BPXDI4"),
+  SMQ     = c("SMQ020","SMQ040"),
+  PAQ     = c("PAQ650","PAQ665"),                         # vigorous / moderate rec.
+  HSQ     = c("HSD010","HSQ470","HSQ480","HSQ490"),       # HRQoL: general health + Healthy Days
+  MCQ     = c("MCQ010","MCQ160A","MCQ160B","MCQ160C","MCQ160D","MCQ160E",
+              "MCQ160F","MCQ160G","MCQ160K","MCQ160L","MCQ160M","MCQ160N",
+              "MCQ160O","MCQ220"),                        # medical conditions (FI)
+  DPQ     = c("DPQ010","DPQ020","DPQ030","DPQ040","DPQ050",
+              "DPQ060","DPQ070","DPQ080","DPQ090"),       # PHQ-9 (FI)
+  PFQ     = c("PFQ061B","PFQ061C","PFQ061D","PFQ061E","PFQ061F","PFQ061G",
+              "PFQ061H","PFQ061I","PFQ061J","PFQ061K","PFQ061L")  # function (FI, optional)
+)
+
+## ---- Analysis options ---------------------------------------------
+OPTS <- list(
+  age_min = 40, age_max = 79,       # Klotho subsample range (do not widen)
+
+  # Hypertension definition: self-report OR measured. Threshold choice
+  # matters; 140/90 is the classic definition, 130/80 the 2017 ACC/AHA.
+  htn_sbp = 140, htn_dbp = 90,
+
+  # Frailty Index rules (deficit accumulation; Searle et al. 2008)
+  fi_min_items_frac = 0.80,         # require >=80% of items non-missing per person
+  fi_include_pfq    = TRUE,         # include physical-function difficulty items
+  # NOTE: fi_include_pfq = FALSE gives the "strict" FI for sensitivity
+  #       analysis, to rule out construct overlap with the activity-
+  #       limitation HRQoL outcome.
+
+  # Klotho modelling: analyses use log(Klotho) standardized to SD units,
+  # plus quartiles as a secondary parameterization.
+  klotho_log = TRUE,
+
+  # Mediation bootstrap replicates (survey subbootstrap). 1000+ for final.
+  boot_reps = 1000,
+  seed = 20240101
+)
+
+message("Config loaded: ", N_CYCLES, " cycles, ages ",
+        OPTS$age_min, "-", OPTS$age_max, ".")
